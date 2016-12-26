@@ -14,7 +14,7 @@ On console:
 
 $ mkdir out
 
-$ python ./wikiwiki-scraper.py sample
+$ python ./wikiwiki_scraper.py sample
 
 これで、http://wikiwiki.jp/sample/ 内の文章がepubとなってout/内に出来上がります。
 
