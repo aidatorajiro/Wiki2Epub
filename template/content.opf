@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:py="http://genshi.edgewall.org/" version="3.0" xml:lang="${language_short}" unique-identifier="pub-identifier">
+	<metadata>
+		<dc:identifier id="pub-identifier">urn:uuid:${identifier}</dc:identifier>
+		<dc:title id="pub-title">${title}</dc:title>
+		<dc:language id="pub-language">${language_short}</dc:language>
+		<dc:date>${date}</dc:date>
+		<meta property="dcterms:modified">${date}</meta>
+		<dc:creator id="creator">${author}</dc:creator>
+		<dc:rights>${rights}</dc:rights>
+	</metadata>
+	<manifest>
+		<item id="htmltoc" properties="nav" media-type="application/xhtml+xml" href="toc.xhtml"/>
+		<item id="pages-${name}" href="pages/${name}.xhtml" media-type="application/xhtml+xml" py:for="name in pages.keys()"/>
+		<py:for each="filename, file in files.items()">
+		<py:choose>
+		<item py:when="cover_image == filename" properties="cover-image" id="file-${file['id']}" href="files/${filename}" media-type="${file['type']}"/>
+		<item py:otherwise="" id="file-${file['id']}" href="files/${filename}" media-type="${file['type']}"/>
+		</py:choose>
+		</py:for>
+	</manifest>
+	<spine>
+		<itemref idref="htmltoc" linear="yes"/>
+		<itemref idref="pages-${name}" linear="yes" py:for="name in pages.keys()"/>
+	</spine>
+</package>

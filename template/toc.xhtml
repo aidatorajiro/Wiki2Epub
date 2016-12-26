@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:py="http://genshi.edgewall.org/" lang="${language_short}">
+    <head>
+        <title>${title}</title>
+        <meta charset="utf-8" />
+        <link py:if="default_stylesheet_file" rel="stylesheet" type="text/css" href="files/${default_stylesheet_file}"/>
+    </head>
+    <body>
+        <nav xmlns:epub="http://www.idpf.org/2007/ops" epub:type="toc" id="toc">
+            <h1>Table of Contents</h1>
+            <ol>
+                <py:for each="name, page in pages.items()">
+                <li>
+                    <a href="pages/${name}.xhtml">${page["title"]}</a>
+                </li>
+                </py:for>
+            </ol>
+        </nav>
+    </body>
+</html>
