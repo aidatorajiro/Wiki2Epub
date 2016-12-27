@@ -26,5 +26,5 @@ scraper = WikiwikiScraper("sample")
 
 scraper.make("/path/to/epub/file.epub", "/path/to/cassette/file.cassette")
 
-# ちなみに
+## ちなみに
 ちなみに、できたepubのmobiファイルへの変換は、kindlegenを使うとうまく行くかもしれません。
