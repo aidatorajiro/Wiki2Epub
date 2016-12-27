@@ -11,6 +11,7 @@ from urllib.parse import urlparse, parse_qs, urljoin
 import base64
 import hashlib
 import time
+import vcr.matchers
 
 
 class WikiwikiScraper:
@@ -97,9 +98,19 @@ class WikiwikiScraper:
             element["src"] = path
     
     # wiki_idから個別にepubを生成する。
-    def make(self, path_to_epub, path_to_cassette):
+    def make(self, path_to_epub, path_to_cassette, record_mode="new_episodes", match_on=['uri']):        
         self.path_to_cassette = path_to_cassette
-        with vcr.use_cassette(self.path_to_cassette, record_mode="new_episodes", match_on=['uri']):
+        
+        with vcr.use_cassette(self.path_to_cassette, record_mode=record_mode, match_on=match_on) as cassette:
+            # サーバに負荷をかけすぎないようにオンラインから取ってくるときは少し眠らせる黒魔術
+            def sleep(x):
+                for i in cassette.requests:
+                    if vcr.matchers.requests_match(x, i, cassette._match_on):
+                        return x
+                time.sleep(5)
+                return x
+            cassette._before_record_request = sleep
+            
             print("getting site info...")
             top_page = BeautifulSoup(get_global_file(self.base_url)) # トップページを取得
             self.book_title = top_page.title.text # タイトルを取得
