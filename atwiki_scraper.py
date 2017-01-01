@@ -13,20 +13,16 @@ import hashlib
 import time
 import vcr.matchers
 import extensions
+from wikiwiki_scraper import WikiwikiScraper
 
 
-class WikiwikiScraper:
+class AtwikiScraper(WikiwikiScraper):
     
-    def __init__(self, wiki_id, book_id=None):
-        self.url_extension = {}
-        self.files = {}
-        self.pageurls = []
-        self.pages = {}
-        self.book_title = None
-        self.path_to_cassette = None
-        self.wiki_id = wiki_id
+    def __init__(self, server_id, wiki_id, book_id=None):
         
-        self.hostname = "wikiwiki.jp"
+        WikiwikiScraper.__init__(self, wiki_id, book_id)
+        
+        self.hostname = "www%d.atwiki.jp" % server_id
         self.rooturl = "http://" + self.hostname + "/"
         if book_id == None:
             self.book_id = wiki_id + datetime.datetime.now().strftime("_%Y%m%d%H%M%S") # 現在時刻から書籍のIDを作成
@@ -36,16 +32,13 @@ class WikiwikiScraper:
     
     # wikiに含まれる全てのページのURLを取得する
     def get_all_urls(self):
-        sitemap = BeautifulSoup(get_global_file(self.base_url + "?cmd=list"), "lxml")
-        site_urls = list(map(lambda x: x.get("href"), sitemap.select("#body > ul > li > ul > li > a")))
+        soup = BeautifulSoup(get_global_file(self.base_url + "list"), "lxml")
+        number_of_sitemaps = len(soup.select("div.pagelist > p")[2].select("span") + soup.select(".pagelist > p")[2].select("a"))
+        site_urls = []
+        for i in range(0, number_of_sitemaps):
+            soup = BeautifulSoup(get_global_file(self.base_url + "list?sort=create&pp=%d" % i), "lxml")
+            site_urls += list(map(lambda x: x.get("href"), soup.select("table.pagelist > tr > td > a")))
         return site_urls
-    
-    # インターネット上のデータをダウンロードする
-    def download(self, url, path):
-        url = urljoin(self.base_url, url)
-        if not path in self.files:
-            obj = get_global_file_as_object(url)
-            self.files[path] = (obj.content, obj.headers.get("Content-Type", "").split(";")[0])
     
     # 各要素ごとに処理をする。
     # 処理その１：scriptタグだったりしたら要素自体を消す、などの検閲作業
@@ -72,7 +65,7 @@ class WikiwikiScraper:
             qs = parse_qs(o[4])
             
             if not href.startswith("#"):
-                if re.match(r".+?/\?[^=\?]+$", href): # if page
+                if re.match(r".+?/pages/\d+.html(#.*)?$", href) or href == "/" + self.wiki_id + "/": # if page
                     path = hashlib.sha256(href.encode()).hexdigest() + ".xhtml"
                 elif re.match(r".+?\.css(\?.+)?$", href): # if css
                     try:
@@ -94,11 +87,19 @@ class WikiwikiScraper:
             o = urlparse(src)
             qs = parse_qs(o[4])
             
-            image_re = re.match(r".+?\.(jpg|jpeg|gif|png)(\?.+)?$", src)
-            if image_re: # if image
+            image_re_1 = re.match(r".+?\.(jpg|jpeg|gif|png)(\?.+)?$", src)
+            image_re_2 = re.match(r"^//cdn\d+\.atwikiimg\.com/.+?$", src)
+            if image_re_1: # if image
                 try:
-                    path = "../files/" + hashlib.sha256(src.encode()).hexdigest() + "." + image_re.group(1)
-                    self.download(src, hashlib.sha256(src.encode()).hexdigest() + "." + image_re.group(1))
+                    path = "../files/" + hashlib.sha256(src.encode()).hexdigest() + "." + image_re_1.group(1)
+                    self.download(src, hashlib.sha256(src.encode()).hexdigest() + "." + image_re_1.group(1))
+                except Exception as e:
+                    path = ""
+                    print("network error occurred: " + str(e))
+            elif image_re_2: # if image with no extension
+                try:
+                    path = "../files/" + hashlib.sha256(src.encode()).hexdigest()
+                    self.download(src, hashlib.sha256(src.encode()).hexdigest())
                 except Exception as e:
                     path = ""
                     print("network error occurred: " + str(e))
@@ -118,13 +119,13 @@ class WikiwikiScraper:
                 for i in cassette.requests:
                     if vcr.matchers.requests_match(x, i, cassette._match_on):
                         return x
-                time.sleep(5)
+                time.sleep(1)
                 return x
             cassette._before_record_request = sleep
             
             print("getting site info...")
             top_page = BeautifulSoup(get_global_file(self.base_url), "lxml") # トップページを取得
-            self.book_title = top_page.title.text # タイトルを取得
+            self.book_title = top_page.select('head > meta[property="og:site_name"]')[0].get("content") # タイトルを取得
             
             print("getting site map...")
             self.pageurls = self.get_all_urls() # サイトの全ページのURLを取得
@@ -150,11 +151,11 @@ class WikiwikiScraper:
             for filename, file in self.files.items():
                 maker.addFile(filename, file[0], file[1])
             
-            maker.addFile("style.css", get_local_file(script_path("assets", "wikiwiki", "style.css")), "text/css")
+            maker.addFile("style.css", get_local_file(script_path("assets", "atwiki", "style.css")), "text/css")
             
             print("making epub file...")
             maker.doMake(path_to_epub)
 
 if __name__ == '__main__':
-    scraper = WikiwikiScraper(sys.argv[1])
-    scraper.make(sys.argv[2], sys.argv[3])
+    scraper = AtwikiScraper(int(sys.argv[1]), sys.argv[2])
+    scraper.make(sys.argv[3], sys.argv[4])

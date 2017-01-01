@@ -15,6 +15,8 @@ def get_local_file(path):
 
 # インターネットからファイルを取得する。
 def get_global_file_as_object(url):
+    if url.startswith("//"):
+        url = "http:" + url
     return requests.get(url)
 
 def get_global_file(url):
