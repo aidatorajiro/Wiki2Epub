@@ -13,6 +13,7 @@ import hashlib
 import time
 import vcr.matchers
 import extensions
+import magic
 
 
 class WikiwikiScraper:
@@ -25,6 +26,7 @@ class WikiwikiScraper:
         self.book_title = None
         self.path_to_cassette = None
         self.wiki_id = wiki_id
+        self.page_only = False
         
         self.hostname = "wikiwiki.jp"
         self.rooturl = "http://" + self.hostname + "/"
@@ -41,11 +43,25 @@ class WikiwikiScraper:
         return site_urls
     
     # インターネット上のデータをダウンロードする
-    def download(self, url, path):
+    def download(self, url, path, mime_guess_method="content-type", custom_mime=None):
+        if self.page_only == True:
+            return
+        
         url = urljoin(self.base_url, url)
         if not path in self.files:
             obj = get_global_file_as_object(url)
-            self.files[path] = (obj.content, obj.headers.get("Content-Type", "").split(";")[0])
+            if obj.status_code == 404:
+                print("resource not found: " + url)
+                return
+            if mime_guess_method == "content-type":
+                mime = obj.headers.get("Content-Type", "").split(";")[0]
+            elif mime_guess_method == "python-magic":
+                mime = magic.from_buffer(obj.content, mime=True)
+            elif mime_guess_method == "custom" and type(custom_mime) == str:
+                mime = custom_mime
+            else:
+                raise Exception('Invalid arguments')
+            self.files[path] = (obj.content, mime)
     
     # 各要素ごとに処理をする。
     # 処理その１：scriptタグだったりしたら要素自体を消す、などの検閲作業
@@ -77,7 +93,7 @@ class WikiwikiScraper:
                 elif re.match(r".+?\.css(\?.+)?$", href): # if css
                     try:
                         path = "../files/" + hashlib.sha256(href.encode()).hexdigest() + ".css"
-                        self.download(href, hashlib.sha256(href.encode()).hexdigest())
+                        self.download(href, hashlib.sha256(href.encode()).hexdigest() + ".css", "custom", "text/css")
                     except Exception as e:
                         path = ""
                         print("network error occurred: " + str(e))
@@ -98,7 +114,7 @@ class WikiwikiScraper:
             if image_re: # if image
                 try:
                     path = "../files/" + hashlib.sha256(src.encode()).hexdigest() + "." + image_re.group(1)
-                    self.download(src, hashlib.sha256(src.encode()).hexdigest() + "." + image_re.group(1))
+                    self.download(src, hashlib.sha256(src.encode()).hexdigest() + "." + image_re.group(1), "python-magic")
                 except Exception as e:
                     path = ""
                     print("network error occurred: " + str(e))
@@ -137,6 +153,8 @@ class WikiwikiScraper:
                 page = BeautifulSoup(get_global_file(pageurl), "lxml")
                 
                 list(map(self.process_element, page.select("*")))
+                
+                page.head.append(page.new_tag('link', rel="stylesheet", href="../files/style.css", type="text/css"))
                 
                 self.pages[hashlib.sha256(pageurl.encode()).hexdigest()] = (page.title.text, {"head": str(page.head), "body": str(page.body)})
             

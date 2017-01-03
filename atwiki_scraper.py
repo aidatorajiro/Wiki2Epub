@@ -57,6 +57,9 @@ class AtwikiScraper(WikiwikiScraper):
         if element.get("onclick"):
             del element["onclick"] # onclickは問答無用で削除
         
+        if element.get("style"):
+            element["style"] = re.sub(r"display\s*:\s*none", "", element.get("style")) # display:noneがありすぎるとkindlegenでエラーが出るので・・・・
+        
         # href属性関連
         href = element.get("href")
         
@@ -65,12 +68,15 @@ class AtwikiScraper(WikiwikiScraper):
             qs = parse_qs(o[4])
             
             if not href.startswith("#"):
-                if re.match(r".+?/pages/\d+.html(#.*)?$", href) or href == "/" + self.wiki_id + "/": # if page
+                re_1 = re.match(r"(.+?/pages/\d+.html)(#.*)$", href)
+                if re_1: # if page with anchor
+                    path = hashlib.sha256(re_1.group(1).encode()).hexdigest() + ".xhtml" + re_1.group(2)
+                elif re.match(r".+?/pages/\d+.html$", href) or href == "/" + self.wiki_id + "/": # if page with no anchor or toppage
                     path = hashlib.sha256(href.encode()).hexdigest() + ".xhtml"
                 elif re.match(r".+?\.css(\?.+)?$", href): # if css
                     try:
                         path = "../files/" + hashlib.sha256(href.encode()).hexdigest() + ".css"
-                        self.download(href, hashlib.sha256(href.encode()).hexdigest())
+                        self.download(href, hashlib.sha256(href.encode()).hexdigest() + ".css", "custom", "text/css")
                     except Exception as e:
                         path = ""
                         print("network error occurred: " + str(e))
@@ -91,15 +97,15 @@ class AtwikiScraper(WikiwikiScraper):
             image_re_2 = re.match(r"^//cdn\d+\.atwikiimg\.com/.+?$", src)
             if image_re_1: # if image
                 try:
-                    path = "../files/" + hashlib.sha256(src.encode()).hexdigest() + "." + image_re_1.group(1)
-                    self.download(src, hashlib.sha256(src.encode()).hexdigest() + "." + image_re_1.group(1))
+                    path = "../files/" + hashlib.sha256(src.encode()).hexdigest()
+                    self.download(src, hashlib.sha256(src.encode()).hexdigest(), "python-magic")
                 except Exception as e:
                     path = ""
                     print("network error occurred: " + str(e))
             elif image_re_2: # if image with no extension
                 try:
                     path = "../files/" + hashlib.sha256(src.encode()).hexdigest()
-                    self.download(src, hashlib.sha256(src.encode()).hexdigest())
+                    self.download(src, hashlib.sha256(src.encode()).hexdigest(), "python-magic")
                 except Exception as e:
                     path = ""
                     print("network error occurred: " + str(e))
@@ -138,6 +144,8 @@ class AtwikiScraper(WikiwikiScraper):
                 page = BeautifulSoup(get_global_file(pageurl), "lxml")
                 
                 list(map(self.process_element, page.select("*")))
+                
+                page.head.append(page.new_tag('link', rel="stylesheet", href="../files/style.css", type="text/css"))
                 
                 self.pages[hashlib.sha256(pageurl.encode()).hexdigest()] = (page.title.text, {"head": str(page.head), "body": str(page.body)})
             
